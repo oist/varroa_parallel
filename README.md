@@ -27,3 +27,10 @@ The processing pipeline includes 3 steps: variant calling, phasing, and associat
 
   - Individuals' haplotypes are extracted for the Fst analysis **gene_haplos.py**.
 
+4. Wing morphometrics
+  - source code (`morpho.r`) and data for wing morphometric analysis.
+
+
+## Processed data
+
+  - `data/fst.csv` contains Fst values and corresponding p-values for genetic changes.
