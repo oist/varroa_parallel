@@ -53,7 +53,7 @@ def get_sizes(gen):
     res = [ math.ceil(res[0]*psize), math.ceil(res[1]*psize), psize*afr_size ]
     return res
 
-## generator returning individual's sex, 10% of individuals are male
+## generator returning individual's sex, 10% of individuals are female to simulate polyandry
 def sex_func():
     i = 0
     while True:
