@@ -1,9 +1,9 @@
 import sys,gzip,os,operator,copy
 
 """
-Extract individuals' haplotypes of genes based on variants. Save into fasta files for further fst analysis.
+Count all genes' haplotypes in the AZ and TX pre- and pos-varroa populations. The counts are saved in csv tables with a row per haplotype and four columns corresponding to the populations.
 
-python gene_haplos.py <chromosome>
+python gene_haplos_count.py <chromosome>
 """
 
 chr = int(sys.argv[1])
@@ -12,17 +12,18 @@ stgs = ["early", "late"]
 grs = ["az_early", "az_late", "tx_early", "tx_late"]
 
 fin="phasing/Group%d.vcf.gz" % (chr)
-fout_fasta="fasta/haplotypes_%s_%s_%d.fasta"
+
 
 def read_samples():
 	res = {}
 	for gr in grs:
-		f = open(gr + ".txt", 'r')
+		f = open("pop/" + gr + ".txt", 'r')
 		v = f.read()
 		v = v.strip().split('\n')
 		res[gr] = v
 		f.close()
 	return res
+
 
 def read_genes():
 	res = []
@@ -38,6 +39,7 @@ def read_genes():
 	res = sorted(res, key=operator.itemgetter(1))
 	print("genes: %d" % (len(res)))
 	return res
+
 
 def which_genes(genes, gene_i, pos):
 	all_incl = False
@@ -56,6 +58,7 @@ def which_genes(genes, gene_i, pos):
 			gene_i += 1
 	return (res, gene_i)
 
+
 def pos_refalt(t, inds):
 	refalt = [t[3]]
 	refalt.extend(t[4].split(','))
@@ -72,6 +75,7 @@ def pos_refalt(t, inds):
 		res.append(refalt[int(s[0])])
 		res.append(refalt[int(s[1])])
 	return res
+
 
 def update_genes(curr_genes, genes, v, pos):
 	k = curr_genes.keys()
@@ -99,85 +103,29 @@ def update_genes(curr_genes, genes, v, pos):
 			curr_genes[gene] = curr_v
 	return (curr_genes, finished_haplo)
 
-def add_fasta(haplos):
-	for gene in haplos.keys():
+
+def get_all_haplos(gene_h):
+    res = []
+    for pop in ["az_early", "az_late", "tx_early", "tx_late"]:
+        res.extend(gene_h[pop])
+    return list(set(res))
+
+
+def count_haplos(haplos):
+    fw_out = open("haplos/count/chr%i.txt" % chr, 'a')
+    for gene in haplos.keys():
 		gene_h = haplos[gene]
-		for gr in grs:
-			gr_haplo = gene_h[gr]
-			gr_nms = gr_smpls[gr]
-			for i in range(len(gr_nms)):
-				h1 = gr_haplo[i*2]
-				h1 = h1.replace('-', '')
-				h2 = gr_haplo[i*2+1]
-				h2 = h2.replace('-', '')
-				fw_fasta[gr].write(">" + gene + "|" + gr_nms[i] + "|1\n")
-				fw_fasta[gr].write(h1 +"\n")
-				fw_fasta[gr].write(">" + gene + "|" + gr_nms[i] + "|2\n")
-				fw_fasta[gr].write(h2 +"\n")
+		all_hs = get_all_haplos(gene_h)
+		#pos = gene_h["pos"]
+		for i in range(len(all_hs)):
+			h = all_hs[i]
+			az_e = gene_h["az_early"].count(h)
+			az_l = gene_h["az_late"].count(h)
+			tx_e = gene_h["tx_early"].count(h)
+			tx_l = gene_h["tx_late"].count(h)
+			fw_out.write("%s_%i,%i,%i,%i,%i\n" % (gene,i,az_e,az_l,tx_e,tx_l))
+    fw_out.close()
 
-def remove_write_gene_fasta(haplos, remov):
-	for gene in haplos.keys():
-		gene_h = haplos[gene]
-		pos = gene_h["pos"]
-		dr = "fasta"
-		if (remov):
-			dr = "filtered_fasta"
-		os.mkdir("genes/%s/%s" % (dr,gene))
-		fw = open("genes/%s/%s/%s.fasta" % (dr,gene,gene), 'w')
-
-		for pop in pops:
-			gr_early = pop + "_early"
-			hs_early = gene_h[gr_early]
-			gr_late = pop + "_late"
-			hs_late = gene_h[gr_late]
-
-			gr_nms = gr_smpls[gr_early]
-			for i in range(len(gr_nms)):
-				h1 = hs_early[i*2]
-				h2 = hs_early[i*2+1]
-				fw.write(">" + gr_nms[i] + "|1\n")
-				fw.write(h1 + "\n")
-				fw.write(">" + gr_nms[i] + "|2\n")
-				fw.write(h2 + "\n")
-
-			gr_nms = gr_smpls[gr_late]
-			for i in range(len(gr_nms)):
-				h1 = hs_late[2*i]
-				h2 = hs_late[2*i+1]
-				if (remov):
-					if (h1 in hs_early):
-						fw.write(">" + gr_nms[i] + "|1\n")
-						fw.write(h1 + "\n")
-					if (h2 in hs_early):
-						fw.write(">" + gr_nms[i] + "|2\n")
-						fw.write(h2 + "\n")
-				else:
-					fw.write(">" + gr_nms[i] + "|1\n")
-					fw.write(h1 + "\n")
-					fw.write(">" + gr_nms[i] + "|2\n")
-					fw.write(h2 + "\n")
-
-		fw.close()
-
-def remove_haplos_from_lines(haplos, pos_lines):
-	# which are the novel haplotypes - remove them from the pos_lines
-	for gene in haplos.keys():
-		gene_h = haplos[gene]
-		pos = gene_h["pos"]
-		for pop in pops:
-			gr_early = pop + "_early"
-			hs_early = gene_h[gr_early]
-			gr_late = pop + "_late"
-			hs_late = gene_h[gr_late]
-			for i in range(len(gr_inds[gr_late])):
-				h1 = hs_late[2*i] in hs_early
-				h2 = hs_late[2*i+1] in hs_early
-				if h1 and h2:
-					# novel haplotype
-					ind = gr_inds[gr_late][i]
-					for p in pos:
-						pos_lines[p][ind] = ".|.:."
-	return pos_lines
 
 gr_smpls = read_samples()
 genes = read_genes()
@@ -185,8 +133,6 @@ gr_inds = {}
 gene_i = 0
 finished_genes = 0
 curr_genes = {}
-pos_lines = {}
-pos_genes = {}
 for line in gzip.open(fin):
 	line = line.rstrip()
 	if (line.startswith("#CHROM")):
@@ -203,19 +149,10 @@ for line in gzip.open(fin):
 		(genes_in_pos, gene_i) = which_genes(genes, gene_i, pos)
 		v = {}
 		if (len(genes_in_pos) > 0):
-			pos_lines[pos] = t
-			pos_genes[pos] = genes_in_pos
 			for gr in grs:
 				v[gr] = pos_refalt(t, gr_inds[gr])
 		(curr_genes, finished_haplo) = update_genes(curr_genes, genes_in_pos, v, pos)
 		if (len(finished_haplo) > 0):
 			finished_genes += len(finished_haplo)
 			print("finished: %d gene_i: %d" % (finished_genes, gene_i))
-			remove_write_gene_fasta(finished_haplo, False)
-			for gene in finished_haplo.keys():
-				for p in finished_haplo[gene]["pos"]:
-					pos_genes[p].remove(gene)
-			for p in pos_genes.keys():
-				if (len(pos_genes[p]) == 0):
-					del pos_lines[p]
-					del pos_genes[p]
+			count_haplos(finished_haplo)
